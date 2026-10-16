@@ -1,0 +1,14 @@
+{
+  "name": "@bbebee/source-jellyfin",
+  "version": "1.0.0",
+  "description": "Jellyfin music source for BBeBee",
+  "type": "module",
+  "scripts": {
+    "compile": "node scripts/compile.mjs",
+    "validate": "node scripts/validate.mjs",
+    "test": "node scripts/validate.mjs --test",
+    "test:live": "node scripts/test-live.mjs"
+  },
+  "author": "BBeBee",
+  "license": "MIT"
+}

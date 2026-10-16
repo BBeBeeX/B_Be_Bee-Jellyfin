@@ -1,0 +1,90 @@
+{
+  "sourceUrl": "https://jellyfin.example.org",
+  "sourceName": "Jellyfin",
+  "version": "1.0.0",
+  "author": "BBeBee",
+  "sourceGroup": "self-hosted,jellyfin",
+  "needsLyricSource": true,
+  "sourceComment": "Jellyfin media server music source. Host is configured via sourceUrl; credentials user and password (or token) are provided via loginUi/params.",
+  "variableComment": "username:password or token",
+  "concurrentRate": "5/1000",
+  "params": [
+    "sourceurl",
+    "user",
+    "username",
+    "password",
+    "token"
+  ],
+  "loginUi": [
+    {
+      "id": "user",
+      "label": "Username",
+      "type": "text"
+    },
+    {
+      "id": "password",
+      "label": "Password",
+      "type": "password"
+    }
+  ],
+  "loginType": "form",
+  "loginUrl": "{{source.url}}/Users/AuthenticateByName,{\"method\":\"POST\",\"headers\":{\"Content-Type\":\"application/json\",\"Authorization\":\"MediaBrowser Client=\\\"BBeBee\\\", Device=\\\"BBeBee\\\", DeviceId=\\\"bbebee-music-source\\\", Version=\\\"1.0.0\\\"\",\"X-Emby-Authorization\":\"MediaBrowser Client=\\\"BBeBee\\\", Device=\\\"BBeBee\\\", DeviceId=\\\"bbebee-music-source\\\", Version=\\\"1.0.0\\\"\"},\"body\":\"{\\\"Username\\\":\\\"{{login.user}}\\\",\\\"Pw\\\":\\\"{{login.password}}\\\"}\"}",
+  "loginCheckJs": "// Check if Jellyfin returned AccessToken\nconst res = result || {};\nif (res.AccessToken) {\n  src.vars.put('token', res.AccessToken);\n  if (res.User && res.User.Id) {\n    src.vars.put('userId', res.User.Id);\n  }\n  if (res.ServerId) {\n    src.vars.put('serverId', res.ServerId);\n  }\n  return true;\n}\nreturn false;",
+  "searchUrl": "{{source.url}}/Items?searchTerm={{key}}&IncludeItemTypes=Audio&Recursive=true&Limit=50&StartIndex={{@js:(page-1)*50}}&{{@js:auth()}}",
+  "exploreUrl": "[{\"title\":\"Recently added\",\"url\":\"{{source.url}}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=100&StartIndex={{@js:(page-1)*100}}&{{@js:auth()}}\"},{\"title\":\"Alphabetical\",\"url\":\"{{source.url}}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=SortName&SortOrder=Ascending&Limit=100&StartIndex={{@js:(page-1)*100}}&{{@js:auth()}}\"},{\"title\":\"Playlists\",\"url\":\"{{source.url}}/Items?IncludeItemTypes=Playlist&Recursive=true&SortBy=SortName&SortOrder=Ascending&Limit=100&StartIndex={{@js:(page-1)*100}}&{{@js:auth()}}\"}]",
+  "recommendUrl": "{{source.url}}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=50&{{@js:auth()}}",
+  "ruleRecommend": {
+    "trackList": "@js:\n// Extract and shuffle albums for recommendation shelf\nreturn buildRecommendList(result);",
+    "trackId": "$.id",
+    "title": "$.title || $.name",
+    "artist": "$.artist",
+    "kind": "=album",
+    "artwork": "={{source.url}}/Items/{{item.coverId}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
+    "childUrl": "$.childUrl"
+  },
+  "ruleSearch": {
+    "trackList": "@js:\n// Extract songs from search result\nreturn getSearchSongs(result);",
+    "trackId": "$.id",
+    "title": "$.title",
+    "artist": "$.artist",
+    "album": "$.album",
+    "albumId": "$.albumId",
+    "durationMs": "$.durationMs",
+    "artwork": "={{source.url}}/Items/{{item.coverId}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
+    "quality": "$.quality"
+  },
+  "ruleStream": {
+    "url": "={{source.url}}/Audio/{{track.id}}/stream?static=true&{{@js:auth()}}",
+    "seekable": "=true"
+  },
+  "ruleExplore": {
+    "trackList": "$.Items[*]",
+    "trackId": "$.Id",
+    "title": "$.Name",
+    "artist": "$.AlbumArtist || $.Artists[0] || =Jellyfin",
+    "kind": "=album",
+    "artwork": "={{source.url}}/Items/{{item.Id}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
+    "childUrl": "={{source.url}}/Items?ParentId={{item.Id}}&IncludeItemTypes=Audio&SortBy=IndexNumber,SortName&SortOrder=Ascending&{{@js:auth()}}"
+  },
+  "ruleTrackList": {
+    "trackList": "@js:\n// Extract songs from album or playlist response\nreturn getTrackListSongs(result);",
+    "trackId": "$.id",
+    "title": "$.title",
+    "artist": "$.artist",
+    "album": "$.album",
+    "albumId": "$.albumId",
+    "durationMs": "$.durationMs",
+    "artwork": "={{source.url}}/Items/{{item.coverId}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
+    "quality": "$.quality"
+  },
+  "ruleAlbum": {
+    "title": "$.Items[0].Album || =Jellyfin Album",
+    "artist": "$.Items[0].AlbumArtist || $.Items[0].Artists[0] || =Jellyfin",
+    "trackCount": "$.TotalRecordCount",
+    "childUrl": "={{source.url}}/Items?ParentId={{album.id}}&IncludeItemTypes=Audio&SortBy=IndexNumber,SortName&SortOrder=Ascending&{{@js:auth()}}"
+  },
+  "ruleLyric": {
+    "lyric": "={{@js:getJellyfinLyrics()}}"
+  },
+  "jsLib": "/**\n * Jellyfin 媒体服务器辅助运行时函数库\n * 提供 REST API 认证、URL 规范化、歌曲元数据转换、推荐歌单构建与歌词同步解析功能\n */\n\n/**\n * 获取清洗后的 Jellyfin 服务器基础地址\n * 移除末尾斜杠以及常见 Web 客户端路径后缀（如 /web, /web/index.html）\n */\nfunction getBaseUrl() {\n  const raw = (typeof source !== 'undefined' && source && source.url) || '';\n  return raw.replace(/\\/web(?:\\/index\\.html)?$/i, '').replace(/\\/+$/, '');\n}\n\n/**\n * 读取当前存储的 Jellyfin 访问令牌或 API 密钥\n */\nfunction getStoredToken() {\n  return (\n    src.vars.get('token') ||\n    src.vars.get('api_key') ||\n    src.vars.get('apiKey') ||\n    src.cache.get('token') ||\n    ''\n  );\n}\n\n/**\n * 读取当前存储的 Jellyfin 用户标识\n */\nfunction getUserId() {\n  return (\n    src.vars.get('userId') ||\n    src.vars.get('userid') ||\n    src.cache.get('userId') ||\n    ''\n  );\n}\n\n/**\n * 生成 Jellyfin REST API 鉴权查询字符串\n * 优先使用已缓存或显式配置的 token / api_key；\n * 若未生成 token 但配置了用户名和密码，则自动调用 /Users/AuthenticateByName 获取并持久化 token\n */\nasync function auth() {\n  let token = getStoredToken();\n  if (token) {\n    return 'apiKey=' + encodeURIComponent(token) + '&api_key=' + encodeURIComponent(token);\n  }\n\n  // 尝试读取独立凭据 user 与 password，或兼容单个 var (user:password)\n  let u = src.vars.get('user') || src.vars.get('username') || '';\n  let p = src.vars.get('password') || '';\n  if (!u && !p) {\n    const v = String(src.vars.get('var') || '');\n    if (v.includes(':')) {\n      const idx = v.indexOf(':');\n      u = v.slice(0, idx);\n      p = v.slice(idx + 1);\n    } else if (v) {\n      // 若 var 仅包含纯字符串，可能是直接输入的 API Key\n      token = v;\n      src.vars.put('token', token);\n      return 'apiKey=' + encodeURIComponent(token) + '&api_key=' + encodeURIComponent(token);\n    }\n  }\n\n  // 若存在用户名，通过 Jellyfin 认证接口获取 AccessToken\n  if (u) {\n    try {\n      const baseUrl = getBaseUrl();\n      const loginPayload = JSON.stringify({ Username: u, Pw: p });\n      const authRes = await src.post(\n        baseUrl + '/Users/AuthenticateByName',\n        loginPayload,\n        {\n          headers: {\n            'Content-Type': 'application/json',\n            'Authorization':\n              'MediaBrowser Client=\"BBeBee\", Device=\"BBeBee\", DeviceId=\"bbebee-music-source\", Version=\"1.0.0\"',\n            'X-Emby-Authorization':\n              'MediaBrowser Client=\"BBeBee\", Device=\"BBeBee\", DeviceId=\"bbebee-music-source\", Version=\"1.0.0\"',\n          },\n        }\n      );\n      if (authRes && authRes.status === 200 && authRes.body) {\n        const data = src.parse.json(authRes.body);\n        if (data && data.AccessToken) {\n          token = data.AccessToken;\n          src.vars.put('token', token);\n          if (data.User && data.User.Id) {\n            src.vars.put('userId', data.User.Id);\n          }\n          if (data.ServerId) {\n            src.vars.put('serverId', data.ServerId);\n          }\n          return 'apiKey=' + encodeURIComponent(token) + '&api_key=' + encodeURIComponent(token);\n        }\n      }\n    } catch (e) {\n      // 认证失败或网络异常时忽略，返回空字符串让上层处理\n    }\n  }\n\n  return token ? 'apiKey=' + encodeURIComponent(token) + '&api_key=' + encodeURIComponent(token) : '';\n}\n\n/**\n * 格式化单个音频项，提取统一字段与封面标识\n * @param {object} item - Jellyfin BaseItemDto 对象\n * @param {string} [dirCoverId] - 父级目录或专辑封面标识回退\n */\nfunction formatAudioItem(item, dirCoverId) {\n  if (!item || typeof item !== 'object') return {};\n\n  const id = String(item.Id || item.id || '');\n  const title = item.Name || item.title || 'Unknown Track';\n\n  // 艺术家字段提取\n  let artist = 'Unknown Artist';\n  if (Array.isArray(item.Artists) && item.Artists.length > 0) {\n    artist = item.Artists.join(', ');\n  } else if (item.AlbumArtist) {\n    artist = item.AlbumArtist;\n  } else if (item.artist) {\n    artist = item.artist;\n  }\n\n  const album = item.Album || item.album || '';\n  const albumId = String(item.AlbumId || item.ParentId || '');\n\n  // 时长换算：Jellyfin RunTimeTicks 为 100 纳秒单位（10,000 ticks = 1 毫秒）\n  let durationMs = 0;\n  if (typeof item.RunTimeTicks === 'number') {\n    durationMs = Math.round(item.RunTimeTicks / 10000);\n  } else if (typeof item.durationMs === 'number') {\n    durationMs = item.durationMs;\n  } else if (typeof item.duration === 'number') {\n    durationMs = Math.round(item.duration * 1000);\n  }\n\n  // 封面标识：优先歌曲自身 Primary 封面，次选专辑封面，最后回退父级或歌曲自身\n  let coverId = id;\n  if (item.ImageTags && item.ImageTags.Primary) {\n    coverId = id;\n  } else if (item.AlbumPrimaryImageTag && albumId) {\n    coverId = albumId;\n  } else if (albumId) {\n    coverId = albumId;\n  } else if (dirCoverId) {\n    coverId = dirCoverId;\n  }\n\n  // 音频容器/格式标识（如 mp3, flac, opus）\n  const quality =\n    item.Container ||\n    (item.MediaSources && item.MediaSources[0] && item.MediaSources[0].Container) ||\n    '';\n\n  return {\n    id: id,\n    title: title,\n    artist: artist,\n    album: album,\n    albumId: albumId,\n    durationMs: durationMs,\n    coverId: coverId,\n    quality: quality,\n  };\n}\n\n/**\n * 提取搜索结果中的歌曲列表\n * 当关键词匹配到歌手而非直接歌曲名时，自动补充按歌手检索的音频结果\n * @param {object} res - /Items 搜索结果响应\n * @param {string} [searchKeyword] - 搜索关键词\n */\nasync function getSearchSongs(res, searchKeyword) {\n  const root = res || {};\n  let list = Array.isArray(root.Items) ? root.Items.slice() : (Array.isArray(root) ? root.slice() : []);\n\n  // 获取当前查询词（若参数未显式提供，尝试从沙盒全局 key 变量获取）\n  const q = searchKeyword || (typeof key !== 'undefined' ? key : '');\n\n  // 若按歌曲名称搜索结果较少且存在查询词，尝试按 Artists 补充检索以覆盖歌手名搜索场景\n  if (list.length < 20 && q && typeof src !== 'undefined' && src.get) {\n    try {\n      const baseUrl = getBaseUrl();\n      const authQ = await auth();\n      const artistUrl =\n        baseUrl +\n        '/Items?Artists=' +\n        encodeURIComponent(q) +\n        '&IncludeItemTypes=Audio&Recursive=true&Limit=50&' +\n        authQ;\n      const artistRes = await src.get(artistUrl);\n      if (artistRes && artistRes.status === 200 && artistRes.body) {\n        const artistData = src.parse.json(artistRes.body);\n        const artistItems = Array.isArray(artistData && artistData.Items) ? artistData.Items : [];\n        const seen = new Set(list.map(function (s) { return String(s.Id || s.id); }));\n        for (let i = 0; i < artistItems.length; i++) {\n          const item = artistItems[i];\n          const sid = String(item.Id || item.id);\n          if (!seen.has(sid)) {\n            seen.add(sid);\n            list.push(item);\n          }\n        }\n      }\n    } catch (e) {\n      // 补充搜索降级，仅返回原有结果\n    }\n  }\n\n  return list\n    .filter(function (item) {\n      return item && (item.Type === 'Audio' || item.RunTimeTicks !== undefined);\n    })\n    .map(function (item) {\n      return formatAudioItem(item);\n    });\n}\n\n/**\n * 提取专辑、歌单或目录下的曲目列表\n * @param {object} res - /Items?ParentId=... 响应\n */\nfunction getTrackListSongs(res) {\n  const root = res || {};\n  const list = Array.isArray(root.Items) ? root.Items : (Array.isArray(root) ? root : []);\n\n  // 提取当前专辑可能存在的公共封面 ID\n  let dirCoverId = '';\n  if (list.length > 0 && list[0].AlbumId) {\n    dirCoverId = String(list[0].AlbumId);\n  }\n\n  return list\n    .filter(function (item) {\n      return item && (item.Type === 'Audio' || item.RunTimeTicks !== undefined);\n    })\n    .map(function (item) {\n      return formatAudioItem(item, dirCoverId);\n    });\n}\n\n/**\n * 构建个性化推荐列表\n * 包含首位默认探索歌单及随机推荐的专辑卡片\n * @param {object} res - 推荐专辑列表响应\n * @param {string} [sourceUrl] - 服务器地址\n */\nasync function buildRecommendList(res, sourceUrl) {\n  const root = res || {};\n  const list = Array.isArray(root.Items) ? root.Items : (Array.isArray(root) ? root : []);\n  const baseUrl = getBaseUrl() || (sourceUrl ? String(sourceUrl).replace(/\\/+$/, '') : '');\n  const authQ = await auth();\n\n  const albums = list.map(function (item) {\n    const id = String(item.Id || item.id || '');\n    let artist = 'Jellyfin';\n    if (item.AlbumArtist) {\n      artist = item.AlbumArtist;\n    } else if (Array.isArray(item.Artists) && item.Artists.length > 0) {\n      artist = item.Artists.join(', ');\n    }\n    return {\n      id: 'album-' + id,\n      name: item.Name || 'Unknown Album',\n      title: item.Name || 'Unknown Album',\n      artist: artist,\n      kind: 'album',\n      coverId: id,\n      childUrl:\n        baseUrl +\n        '/Items?ParentId=' +\n        encodeURIComponent(id) +\n        '&IncludeItemTypes=Audio&SortBy=IndexNumber,SortName&SortOrder=Ascending&' +\n        authQ,\n    };\n  });\n\n  // 对专辑进行 Fisher-Yates 随机打乱以保持推荐新鲜感\n  for (let i = albums.length - 1; i > 0; i--) {\n    const j = Math.floor(Math.random() * (i + 1));\n    const temp = albums[i];\n    albums[i] = albums[j];\n    albums[j] = temp;\n  }\n\n  return albums;\n}\n\n/**\n * 获取 Jellyfin 音频同步歌词\n * 调用 /Audio/{id}/Lyrics，解析 100ns ticks 时间戳并格式化为标准 LRC 格式；\n * 若服务端未配置歌词或返回 404，返回空字符串回退至应用默认歌词源（如 LRCLIB）\n */\nasync function getJellyfinLyrics() {\n  const baseUrl = getBaseUrl();\n  if (!baseUrl) return '';\n\n  const trackObj = (typeof track !== 'undefined' && track) ? track : {};\n  const trackId = trackObj.id || '';\n  if (!trackId) return '';\n\n  const authQ = await auth();\n  const lyricUrl =\n    baseUrl +\n    '/Audio/' +\n    encodeURIComponent(trackId) +\n    '/Lyrics' +\n    (authQ ? '?' + authQ : '');\n\n  try {\n    const res = await src.get(lyricUrl);\n    if (!res || res.status !== 200 || !res.body) return '';\n\n    const data = src.parse.json(res.body);\n    if (!data) return '';\n\n    // 解析 Jellyfin LyricDto 结构中的 Lines\n    if (Array.isArray(data.Lines) && data.Lines.length > 0) {\n      const pad = function (n, len) {\n        return (new Array(len + 1).join('0') + n).slice(-len);\n      };\n      const lrcLines = data.Lines.map(function (line) {\n        const ticks = typeof line.Start === 'number' ? line.Start : 0;\n        const ms = Math.floor(ticks / 10000);\n        const m = Math.floor(ms / 60000);\n        const s = Math.floor((ms % 60000) / 1000);\n        const c = Math.floor((ms % 1000) / 10);\n        return '[' + pad(m, 2) + ':' + pad(s, 2) + '.' + pad(c, 2) + ']' + (line.Text || '');\n      });\n      return lrcLines.join('\\n');\n    }\n\n    // 纯文本歌词兼容\n    if (typeof data === 'string') return data.trim();\n    if (typeof data.Lyrics === 'string') return data.Lyrics.trim();\n\n    return '';\n  } catch (e) {\n    return '';\n  }\n}"
+}
