@@ -456,6 +456,49 @@ export async function runNegativeTests() {
         console.error('  FAIL: auth() unexpected result:', authQuery)
         failed++
       }
+
+      // Test getBaseUrl URL cleaning with hash fragments and /web path
+      const urlTestCases = [
+        ['http://127.0.0.1:8096/web/#/Users/AuthenticateByName', 'http://127.0.0.1:8096'],
+        ['http://127.0.0.1:8096/web/#/home.html', 'http://127.0.0.1:8096'],
+        ['http://127.0.0.1:8096/web', 'http://127.0.0.1:8096'],
+        ['http://127.0.0.1:8096/web/', 'http://127.0.0.1:8096'],
+        ['http://127.0.0.1:8096/web/index.html', 'http://127.0.0.1:8096'],
+        ['https://jellyfin.nas.lan:8443/prefix/web/#/home', 'https://jellyfin.nas.lan:8443/prefix'],
+        ['http://192.168.1.100:8096/', 'http://192.168.1.100:8096'],
+      ]
+      let allUrlsPassed = true
+      for (const [inputUrl, expected] of urlTestCases) {
+        const testCtx = createContext({ source: { url: inputUrl } })
+        runInContext(jsContent, testCtx)
+        const res = runInContext('getBaseUrl()', testCtx)
+        if (res !== expected) {
+          console.error(`  FAIL: getBaseUrl("${inputUrl}") => "${res}", expected "${expected}"`)
+          allUrlsPassed = false
+        }
+      }
+      if (allUrlsPassed) {
+        console.log('  PASS: getBaseUrl() cleans hash fragments, /web, and trailing slashes accurately')
+        passed++
+      } else {
+        failed++
+      }
+
+      // Test source.json params cleanliness (no redundant username in variables)
+      const rawDoc = JSON.parse(await readFile(join(srcDir, 'source.json'), 'utf8'))
+      if (
+        Array.isArray(rawDoc.params) &&
+        rawDoc.params.includes('user') &&
+        !rawDoc.params.includes('username') &&
+        !rawDoc.params.includes('token') &&
+        rawDoc.loginUrl.includes('{{@js:getBaseUrl()}}')
+      ) {
+        console.log('  PASS: source.json params strictly contains [sourceurl, user, password] and loginUrl uses getBaseUrl()')
+        passed++
+      } else {
+        console.error('  FAIL: source.json params or loginUrl does not match clean design:', rawDoc.params, rawDoc.loginUrl)
+        failed++
+      }
     } catch (err) {
       console.error('  FAIL: runtime functional tests threw error:', err.message)
       failed++

@@ -5,11 +5,28 @@
 
 /**
  * 获取清洗后的 Jellyfin 服务器基础地址
- * 移除末尾斜杠以及常见 Web 客户端路径后缀（如 /web, /web/index.html）
+ * 移除末尾斜杠、URL Hash 片段以及常见 Web 客户端路径后缀（如 /web, /web/index.html）
  */
 function getBaseUrl() {
-  const raw = (typeof source !== 'undefined' && source && source.url) || '';
-  return raw.replace(/\/web(?:\/index\.html)?$/i, '').replace(/\/+$/, '');
+  const raw =
+    (typeof source !== 'undefined' && source && source.url) ||
+    (typeof baseUrl !== 'undefined' && baseUrl) ||
+    '';
+  if (!raw) return '';
+  let clean = String(raw).trim();
+  // 移除 Hash 片段（如 #/home.html, #/Users/AuthenticateByName 等）
+  clean = clean.replace(/#.*$/, '');
+  // 移除 Query 参数（如 ?param=val）
+  clean = clean.replace(/\?.*$/, '');
+  // 移除 Jellyfin Web 控制台路径后缀（如 /web, /web/, /web/index.html）
+  clean = clean.replace(/\/web(?:\/index\.html)?\/?$/i, '');
+  // 移除多余的末尾斜杠
+  clean = clean.replace(/\/+$/, '');
+  // 确保 http:// 或 https:// 协议头完整
+  if (clean && !/^https?:\/\//i.test(clean)) {
+    clean = 'http://' + clean;
+  }
+  return clean;
 }
 
 /**

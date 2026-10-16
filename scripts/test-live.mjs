@@ -156,6 +156,7 @@ async function run() {
   console.log(`  配置的发现栏目数: ${exploreSpecs.length}`)
   for (const spec of exploreSpecs) {
     const renderedUrl = spec.url
+      .replace('{{@js:getBaseUrl()}}', baseUrl)
       .replace('{{source.url}}', baseUrl)
       .replace('{{@js:(page-1)*100}}', '0')
       .replace('{{@js:auth()}}', authQuery)

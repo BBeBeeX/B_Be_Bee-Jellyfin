@@ -5,15 +5,13 @@
   "author": "BBeBee",
   "sourceGroup": "self-hosted,jellyfin",
   "needsLyricSource": true,
-  "sourceComment": "Jellyfin media server music source. Host is configured via sourceUrl; credentials user and password (or token) are provided via loginUi/params.",
-  "variableComment": "username:password or token",
+  "sourceComment": "Jellyfin media server music source. Host is configured via sourceUrl; credentials user and password are provided via loginUi.",
+  "variableComment": "username:password",
   "concurrentRate": "5/1000",
   "params": [
     "sourceurl",
     "user",
-    "username",
-    "password",
-    "token"
+    "password"
   ],
   "loginUi": [
     {
@@ -28,18 +26,18 @@
     }
   ],
   "loginType": "form",
-  "loginUrl": "{{source.url}}/Users/AuthenticateByName,{\"method\":\"POST\",\"headers\":{\"Content-Type\":\"application/json\",\"Authorization\":\"MediaBrowser Client=\\\"BBeBee\\\", Device=\\\"BBeBee\\\", DeviceId=\\\"bbebee-music-source\\\", Version=\\\"1.0.0\\\"\",\"X-Emby-Authorization\":\"MediaBrowser Client=\\\"BBeBee\\\", Device=\\\"BBeBee\\\", DeviceId=\\\"bbebee-music-source\\\", Version=\\\"1.0.0\\\"\"},\"body\":\"{\\\"Username\\\":\\\"{{login.user}}\\\",\\\"Pw\\\":\\\"{{login.password}}\\\"}\"}",
+  "loginUrl": "{{@js:getBaseUrl()}}/Users/AuthenticateByName,{\"method\":\"POST\",\"headers\":{\"Content-Type\":\"application/json\",\"Authorization\":\"MediaBrowser Client=\\\"BBeBee\\\", Device=\\\"BBeBee\\\", DeviceId=\\\"bbebee-music-source\\\", Version=\\\"1.0.0\\\"\",\"X-Emby-Authorization\":\"MediaBrowser Client=\\\"BBeBee\\\", Device=\\\"BBeBee\\\", DeviceId=\\\"bbebee-music-source\\\", Version=\\\"1.0.0\\\"\"},\"body\":\"{\\\"Username\\\":\\\"{{login.user}}\\\",\\\"Pw\\\":\\\"{{login.password}}\\\"}\"}",
   "loginCheckJs": "// Check if Jellyfin returned AccessToken\nconst res = result || {};\nif (res.AccessToken) {\n  src.vars.put('token', res.AccessToken);\n  if (res.User && res.User.Id) {\n    src.vars.put('userId', res.User.Id);\n  }\n  if (res.ServerId) {\n    src.vars.put('serverId', res.ServerId);\n  }\n  return true;\n}\nreturn false;",
-  "searchUrl": "{{source.url}}/Items?searchTerm={{key}}&IncludeItemTypes=Audio&Recursive=true&Limit=50&StartIndex={{@js:(page-1)*50}}&{{@js:auth()}}",
-  "exploreUrl": "[{\"title\":\"Recently added\",\"url\":\"{{source.url}}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=100&StartIndex={{@js:(page-1)*100}}&{{@js:auth()}}\"},{\"title\":\"Alphabetical\",\"url\":\"{{source.url}}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=SortName&SortOrder=Ascending&Limit=100&StartIndex={{@js:(page-1)*100}}&{{@js:auth()}}\"},{\"title\":\"Playlists\",\"url\":\"{{source.url}}/Items?IncludeItemTypes=Playlist&Recursive=true&SortBy=SortName&SortOrder=Ascending&Limit=100&StartIndex={{@js:(page-1)*100}}&{{@js:auth()}}\"}]",
-  "recommendUrl": "{{source.url}}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=50&{{@js:auth()}}",
+  "searchUrl": "{{@js:getBaseUrl()}}/Items?searchTerm={{key}}&IncludeItemTypes=Audio&Recursive=true&Limit=50&StartIndex={{@js:(page-1)*50}}&{{@js:auth()}}",
+  "exploreUrl": "[{\"title\":\"Recently added\",\"url\":\"{{@js:getBaseUrl()}}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=100&StartIndex={{@js:(page-1)*100}}&{{@js:auth()}}\"},{\"title\":\"Alphabetical\",\"url\":\"{{@js:getBaseUrl()}}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=SortName&SortOrder=Ascending&Limit=100&StartIndex={{@js:(page-1)*100}}&{{@js:auth()}}\"},{\"title\":\"Playlists\",\"url\":\"{{@js:getBaseUrl()}}/Items?IncludeItemTypes=Playlist&Recursive=true&SortBy=SortName&SortOrder=Ascending&Limit=100&StartIndex={{@js:(page-1)*100}}&{{@js:auth()}}\"}]",
+  "recommendUrl": "{{@js:getBaseUrl()}}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=50&{{@js:auth()}}",
   "ruleRecommend": {
     "trackList": "@js:\n// Extract and shuffle albums for recommendation shelf\nreturn buildRecommendList(result);",
     "trackId": "$.id",
     "title": "$.title || $.name",
     "artist": "$.artist",
     "kind": "=album",
-    "artwork": "={{source.url}}/Items/{{item.coverId}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
+    "artwork": "={{@js:getBaseUrl()}}/Items/{{item.coverId}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
     "childUrl": "$.childUrl"
   },
   "ruleSearch": {
@@ -50,11 +48,11 @@
     "album": "$.album",
     "albumId": "$.albumId",
     "durationMs": "$.durationMs",
-    "artwork": "={{source.url}}/Items/{{item.coverId}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
+    "artwork": "={{@js:getBaseUrl()}}/Items/{{item.coverId}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
     "quality": "$.quality"
   },
   "ruleStream": {
-    "url": "={{source.url}}/Audio/{{track.id}}/stream?static=true&{{@js:auth()}}",
+    "url": "={{@js:getBaseUrl()}}/Audio/{{track.id}}/stream?static=true&{{@js:auth()}}",
     "seekable": "=true"
   },
   "ruleExplore": {
@@ -63,8 +61,8 @@
     "title": "$.Name",
     "artist": "$.AlbumArtist || $.Artists[0] || =Jellyfin",
     "kind": "=album",
-    "artwork": "={{source.url}}/Items/{{item.Id}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
-    "childUrl": "={{source.url}}/Items?ParentId={{item.Id}}&IncludeItemTypes=Audio&SortBy=IndexNumber,SortName&SortOrder=Ascending&{{@js:auth()}}"
+    "artwork": "={{@js:getBaseUrl()}}/Items/{{item.Id}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
+    "childUrl": "={{@js:getBaseUrl()}}/Items?ParentId={{item.Id}}&IncludeItemTypes=Audio&SortBy=IndexNumber,SortName&SortOrder=Ascending&{{@js:auth()}}"
   },
   "ruleTrackList": {
     "trackList": "@js:\n// Extract songs from album or playlist response\nreturn getTrackListSongs(result);",
@@ -74,14 +72,14 @@
     "album": "$.album",
     "albumId": "$.albumId",
     "durationMs": "$.durationMs",
-    "artwork": "={{source.url}}/Items/{{item.coverId}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
+    "artwork": "={{@js:getBaseUrl()}}/Items/{{item.coverId}}/Images/Primary?fillWidth=300&fillHeight=300&quality=90&{{@js:auth()}}",
     "quality": "$.quality"
   },
   "ruleAlbum": {
     "title": "$.Items[0].Album || =Jellyfin Album",
     "artist": "$.Items[0].AlbumArtist || $.Items[0].Artists[0] || =Jellyfin",
     "trackCount": "$.TotalRecordCount",
-    "childUrl": "={{source.url}}/Items?ParentId={{album.id}}&IncludeItemTypes=Audio&SortBy=IndexNumber,SortName&SortOrder=Ascending&{{@js:auth()}}"
+    "childUrl": "={{@js:getBaseUrl()}}/Items?ParentId={{album.id}}&IncludeItemTypes=Audio&SortBy=IndexNumber,SortName&SortOrder=Ascending&{{@js:auth()}}"
   },
   "ruleLyric": {
     "lyric": "={{@js:getJellyfinLyrics()}}"
