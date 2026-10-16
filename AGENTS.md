@@ -17,7 +17,10 @@ It is an independent source repository following the BBeBee v3 source artifact c
 
 ## 2. Parameter Conventions
 
-- **Server host (`host`)**: Configured via `sourceUrl` (e.g. `https://jellyfin.example.org`). The app uses this to recalculate outbound network allowed hosts (`allowedHostsFor`).
+- **Server host (`sourceUrl` / `host`)**: Declared in `params: ["sourceurl", "user", "password"]`.
+  - The URL can be entered by users as `http://192.168.1.100:8096/web/#/home.html` or `http://127.0.0.1:8096/web`.
+  - `getBaseUrl()` in `src/source.js` cleans `#.*`, `\?.*`, `/web(?:\/index\.html)?\/?`, and trailing slashes.
+  - All endpoint templates in `src/source.json` must use `{{@js:getBaseUrl()}}` to prevent 404s from fragment truncation.
 - **Credentials (`user` and `password`)**: Declared via `loginUi`:
   ```json
   "loginUi": [
@@ -25,8 +28,10 @@ It is an independent source repository following the BBeBee v3 source artifact c
     { "id": "password", "label": "Password", "type": "password" }
   ]
   ```
-  In BBeBee, these are routed into `ctx.secrets` (hardware OS Keychain / encrypted storage) and never stored in plain SQLite tables.
-- **Token / API Key (`token`)**: Supports direct Jellyfin API keys or tokens via `token` / `api_key` in variables or form login.
+  `params` only lists `["sourceurl", "user", "password"]`. Do NOT add `username` or `token` to `params`, which would cause duplicated input fields in the BBeBee configuration modal.
+- **Session & Auth validation (`loginCheckJs`)**:
+  - `loginCheckJs` is evaluated on **both** the `/Users/AuthenticateByName` login response and **every** regular API fetch via `fetchChecked`.
+  - It must store `token`, `userId`, `serverId` on login responses, but safely return `true` for standard data payloads (e.g. `{ Items: [...] }`) to avoid false session invalidation (`the session for ... is no longer valid`).
 
 ---
 
@@ -34,13 +39,19 @@ It is an independent source repository following the BBeBee v3 source artifact c
 
 ```bash
 # Compile src/source.json and src/source.js to root index.json
-node scripts/compile.mjs
+npm run compile
+# or: node scripts/compile.mjs
 
 # Validate readability, byte-for-byte reproducibility, and schema
-node scripts/validate.mjs
+npm run validate
+# or: node scripts/validate.mjs
 
-# Run negative test suite
-node scripts/validate.mjs --test
+# Run 15-case negative & functional test suite
+npm test
+# or: node scripts/validate.mjs --test
+
+# Run live server e2e integration test against a real Jellyfin instance
+npm run test:live -- "http://192.168.1.100:8096/web/#/home.html" "username" "password"
 ```
 
 ---
@@ -48,6 +59,8 @@ node scripts/validate.mjs --test
 ## 4. Acceptance Gate
 
 Before finishing any change:
-- `node scripts/validate.mjs` must output **0 errors**.
+- `npm run compile` must produce a reproducible `index.json`.
+- `npm run validate` must output **0 errors**.
+- `npm test` must pass (15/15 unit tests).
 - Recompiling must be byte-for-byte identical to committed `index.json`.
-- `node scripts/validate.mjs --test` must pass (all negative test cases).
+- If a live Jellyfin server is accessible, `npm run test:live` must pass all 9 stages.
