@@ -169,6 +169,14 @@ async function run() {
   console.log('\n[6/9] 测试个性化推荐流 (ruleRecommend)...')
   const recommendFetchUrl = `${baseUrl}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=20&${authQuery}`
   const recommendRes = await fetch(recommendFetchUrl).then((r) => r.json())
+
+  // 模拟 BBeBee 核心 fetchChecked 对非登录 API 响应执行 loginCheckJs 会话有效性校验
+  sandbox.result = recommendRes
+  sandbox.login = undefined
+  const recommendCheckOk = runInContext('(function() {\n' + sourceDoc.loginCheckJs + '\n})()', sandbox)
+  if (!recommendCheckOk) throw new Error('loginCheckJs 对推荐 API 返回了 false，导致应用抛出 session invalid 错误！')
+  console.log('  ✓ loginCheckJs 正确识别 API 响应有效（未触发 session invalid 误判）')
+
   const recommendCards = await runInContext(`buildRecommendList(${JSON.stringify(recommendRes)}, "${baseUrl}")`, sandbox)
   console.log(`  推荐流卡片数: ${recommendCards.length}`)
   if (recommendCards.length > 0) {

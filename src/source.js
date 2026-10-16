@@ -54,10 +54,12 @@ function getUserId() {
   );
 }
 
+let _authPromise = null;
+
 /**
  * 生成 Jellyfin REST API 鉴权查询字符串
  * 优先使用已缓存或显式配置的 token / api_key；
- * 若未生成 token 但配置了用户名和密码，则自动调用 /Users/AuthenticateByName 获取并持久化 token
+ * 若未生成 token 但配置了用户名和密码，则自动调用 /Users/AuthenticateByName 获取并持久化 token（支持并发去重）
  */
 async function auth() {
   let token = getStoredToken();
@@ -78,47 +80,60 @@ async function auth() {
       // 若 var 仅包含纯字符串，可能是直接输入的 API Key
       token = v;
       src.vars.put('token', token);
+      src.cache.put('token', token);
       return 'apiKey=' + encodeURIComponent(token) + '&api_key=' + encodeURIComponent(token);
     }
   }
 
-  // 若存在用户名，通过 Jellyfin 认证接口获取 AccessToken
+  // 若存在用户名，通过 Jellyfin 认证接口获取 AccessToken（支持并发请求去重）
   if (u) {
-    try {
-      const baseUrl = getBaseUrl();
-      const loginPayload = JSON.stringify({ Username: u, Pw: p });
-      const authRes = await src.post(
-        baseUrl + '/Users/AuthenticateByName',
-        loginPayload,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization':
-              'MediaBrowser Client="BBeBee", Device="BBeBee", DeviceId="bbebee-music-source", Version="1.0.0"',
-            'X-Emby-Authorization':
-              'MediaBrowser Client="BBeBee", Device="BBeBee", DeviceId="bbebee-music-source", Version="1.0.0"',
-          },
-        }
-      );
-      if (authRes && authRes.status === 200 && authRes.body) {
-        const data = src.parse.json(authRes.body);
-        if (data && data.AccessToken) {
-          token = data.AccessToken;
-          src.vars.put('token', token);
-          if (data.User && data.User.Id) {
-            src.vars.put('userId', data.User.Id);
+    if (!_authPromise) {
+      _authPromise = (async function () {
+        try {
+          const baseUrl = getBaseUrl();
+          const loginPayload = JSON.stringify({ Username: u, Pw: p });
+          const authRes = await src.post(
+            baseUrl + '/Users/AuthenticateByName',
+            loginPayload,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization':
+                  'MediaBrowser Client="BBeBee", Device="BBeBee", DeviceId="bbebee-music-source", Version="1.0.0"',
+                'X-Emby-Authorization':
+                  'MediaBrowser Client="BBeBee", Device="BBeBee", DeviceId="bbebee-music-source", Version="1.0.0"',
+              },
+            }
+          );
+          if (authRes && authRes.status === 200 && authRes.body) {
+            const data = src.parse.json(authRes.body);
+            if (data && data.AccessToken) {
+              const newToken = data.AccessToken;
+              src.vars.put('token', newToken);
+              src.cache.put('token', newToken);
+              if (data.User && data.User.Id) {
+                src.vars.put('userId', data.User.Id);
+                src.cache.put('userId', data.User.Id);
+              }
+              if (data.ServerId) {
+                src.vars.put('serverId', data.ServerId);
+              }
+              return 'apiKey=' + encodeURIComponent(newToken) + '&api_key=' + encodeURIComponent(newToken);
+            }
           }
-          if (data.ServerId) {
-            src.vars.put('serverId', data.ServerId);
-          }
-          return 'apiKey=' + encodeURIComponent(token) + '&api_key=' + encodeURIComponent(token);
+        } catch (e) {
+          // 认证失败或网络异常时忽略，返回空字符串让上层处理
+        } finally {
+          _authPromise = null;
         }
-      }
-    } catch (e) {
-      // 认证失败或网络异常时忽略，返回空字符串让上层处理
+        return '';
+      })();
     }
+    const res = await _authPromise;
+    if (res) return res;
   }
 
+  token = getStoredToken();
   return token ? 'apiKey=' + encodeURIComponent(token) + '&api_key=' + encodeURIComponent(token) : '';
 }
 

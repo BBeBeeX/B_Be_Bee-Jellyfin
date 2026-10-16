@@ -499,6 +499,31 @@ export async function runNegativeTests() {
         console.error('  FAIL: source.json params or loginUrl does not match clean design:', rawDoc.params, rawDoc.loginUrl)
         failed++
       }
+
+      // Test loginCheckJs behavior for login and fetchChecked
+      const checkCode = '(function(result, login) {\n' + rawDoc.loginCheckJs + '\n})'
+      const checkFn = runInContext(checkCode, ctx)
+      const loginSuccess = checkFn({ AccessToken: 'test-token', User: { Id: 'u1' } }, { user: 'aaa' })
+      const loginFail = checkFn({}, { user: 'aaa' })
+      const itemsSuccess = checkFn({ Items: [{ Id: 'item-1' }], TotalRecordCount: 1 }, undefined)
+      const arraySuccess = checkFn([{ Id: '1' }], undefined)
+      const htmlFail = checkFn('<!DOCTYPE html><html>Login</html>', undefined)
+      const errFail = checkFn({ Message: 'Unauthorized' }, undefined)
+
+      if (
+        loginSuccess === true &&
+        loginFail === false &&
+        itemsSuccess === true &&
+        arraySuccess === true &&
+        htmlFail === false &&
+        errFail === false
+      ) {
+        console.log('  PASS: loginCheckJs validates both login response and ordinary API payloads correctly')
+        passed++
+      } else {
+        console.error('  FAIL: loginCheckJs test mismatch:', { loginSuccess, loginFail, itemsSuccess, arraySuccess, htmlFail, errFail })
+        failed++
+      }
     } catch (err) {
       console.error('  FAIL: runtime functional tests threw error:', err.message)
       failed++
